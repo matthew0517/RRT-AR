@@ -1,0 +1,17 @@
+name: RRT-AR
+channels:
+- conda-forge
+dependencies:
+- python=3.9
+- cxx-compiler
+- boost-cpp
+- numpy
+- scipy
+- pip
+- matplotlib
+- ipykernel
+- python-devtools
+- pybind11
+- pip:
+  - lxml
+  # works for regular pip packages
