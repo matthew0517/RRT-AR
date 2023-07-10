@@ -12,6 +12,7 @@
 using namespace std;
 vector<vector<float>> goals;
 float rad;
+float closePenalty;
 // Function to check if a point is within r of the goal. 
 int checkInGoal(float x, float y) {
     for (int i =0; (unsigned) i < goals.size(); i++) {
@@ -97,43 +98,63 @@ float calcCost(Node input, vector<Node> const &searchTree) {
 
 void rewire(vector<Node> &searchTree, int count) {
     vector<int> withRad;
-    int minNeighbor = -1;
-    float minCost =  numeric_limits<float>::max();
     vector<float> costs;
     vector<float> dists;
+    vector<int> parents;
+    vector<int> indexOfNodes;
 
     float x = searchTree[count].cord[0];
     float y = searchTree[count].cord[1];
+    // Initial search- normal RRT*
     for (int i = 0; i < count; i++) {
         float dist = sqrt((searchTree[i].cord[0] - x)*(searchTree[i].cord[0] - x) + (searchTree[i].cord[1] - y)*(searchTree[i].cord[1] - y));
-        if (dist < rad) {
+        if (dist <= 1.1*rad) {
             withRad.push_back(i);
             float cost = calcCost(searchTree[i], searchTree);
             costs.push_back(cost);
             dists.push_back(dist);
-            if (cost + dist < minCost) {
-                minCost = cost+dist;
-                minNeighbor = i;
-            }
+            parents.push_back(searchTree[i].parent);
+            indexOfNodes.push_back(i);
         }
     }
-    if (minNeighbor > -1) {
-        searchTree[count].parent = minNeighbor;
+
+    // This add parent penalty for close neighbor (alg 1 or RRT*-AR)
+    vector<float> costRewire = costs;
+    for (int i = 0; (unsigned) i < costs.size(); i++) {
+        int parent = parents[i];
+        int foundIndex = distance(indexOfNodes.begin(), find(indexOfNodes.begin(), indexOfNodes.end(), parent));
+        if ((unsigned) foundIndex != costs.size()) {
+            costRewire[foundIndex] += closePenalty;
+        } 
     }
+
+    int minNeighbor = -1;
+    float minCost =  numeric_limits<float>::max();
+    for (int i = 0; (unsigned) i < costs.size(); i++) {
+        if (costRewire[i] + dists[i] < minCost) {
+            minCost = costRewire[i] + dists[i];
+            minNeighbor = withRad[i];
+        } 
+    }
+
+    searchTree[count].parent = minNeighbor;
+    vector<int> permutation(costs.size());
+    iota(permutation.begin(), permutation.end(), 0);
+    sort(permutation.begin(), permutation.end(),    [&](int A, int B) -> bool {
+                return costs[A] < costs[B];});
 
     for (int i = 0; (unsigned) i < costs.size(); i++) {
-        if (minCost + dists[i] < costs[i]) {
-            searchTree[withRad[i]].parent = count;
+        if (minCost + dists[permutation[i]] < costs[permutation[i]]) {
+            searchTree[withRad[permutation[i]]].parent = count;
+            minCost += closePenalty;
         }
     }
-
-
-
 }
 
-vector<vector<vector<float>>> runRRT(float initialX, float initialY, int maxNodesIn, float radIn, vector<vector<int>> og, vector<vector<float>> goalsIn) {
+vector<vector<vector<float>>> runRRT(float initialX, float initialY, int maxNodesIn, float radIn, float closePenaltyIn, vector<vector<int>> og, vector<vector<float>> goalsIn) {
     goals = goalsIn;
     rad = radIn;
+    closePenalty = closePenaltyIn;
     vector<Node> searchTree;
     Node origin = Node(initialX, initialY, -1, 0, false, 0);
     searchTree.push_back(origin);
@@ -191,7 +212,6 @@ vector<vector<vector<float>>> runRRT(float initialX, float initialY, int maxNode
             sol.push_back(solBranch);
         }
     }
-    
     return sol;
 }
 
